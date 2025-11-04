@@ -27,12 +27,12 @@ Supports both **YAML frontmatter** (`tags:`) and **inline tags** (`tags::`) and 
 
 Choose how many folder levels to include in tags:
 
-| Option       | Example (note path: `Vault/Sociology/Migration.md`) |
+| Option       | Example (note path: `main-folder/sub-folder/last-folder/note.md`) |
 |--------------|------------------------------------------------------|
-| Default (1)  | `#folder`                                         |
-| Depth 2 (split) | `#sub-folder + #main-folder`                        |
-| Depth 2 (single) | `#main-folder/sub-folder`                            |
-| Full path    | `#main-folder/sub-folder/sub-sub-folder`                        |
+| Default (1)  | `#last-folder`                                         |
+| Depth 2 (split) | `#last-folder + #sub-folder`                        |
+| Depth 2 (single) | `#sub-folder/last-folder`                            |
+| Full path    | `#main-folder/sub-folder/last-folder`                        |
 
 You can also optionally add a **prefix** or **suffix** to all folder tags, e.g., `prefix-` → `#prefix-folder`.
 
