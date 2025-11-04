@@ -1,35 +1,63 @@
 # Folder to Tag Obsidian Plugin
 
-Automatically tags notes in Obsidian based on the folder they are stored in. For if you like to organize your notes by folder but want to use tags for easier searching, linking and graph view.  
-Supports both **YAML frontmatter** and **inline tags**, and updates tags when notes are moved or renamed.  
+Automatically tags notes in Obsidian based on the folder they are stored in.  
+Ideal for users who organize notes by folder but want to leverage tags for easier searching, linking, and graph view.
+
+Supports both **YAML frontmatter** (`tags:`) and **inline tags** (`tags::`) and updates tags when notes are moved or renamed.
+
+---
 
 ## Features
 
-- Automatically adds a tag that matches the first folder of each note.
-- Works for both **YAML frontmatter** (`tags:`) and **inline tags** (`tags::`).
+- Automatically adds a tag that matches the folder(s) of each note.
 - Updates tags when notes are **moved or renamed**.
-- Provides a **settings tab**:
-  - Choose default tag style (`YAML` or `Inline`).
-  - Override existing tags style if needed.
-  - Reapply folder tags to all notes.
-  - Remove all folder tags if you want to undo the plugin’s changes.
 - Preserves all other frontmatter fields (aliases, dates, custom properties, etc.).
 - Compatible with existing notes without folder tags.
+- Configurable **folder depth** and **tag formatting**.
+- Optional **prefix** and **suffix** for tags.
+- Provides a settings tab with:
+  - Override existing tags style.
+  - Default tag style (`YAML frontmatter` or `Inline`).
+  - Reapply folder tags to all notes.
+  - Remove all folder tags.
+
+---
+
+## Folder Depth Options
+
+Choose how many folder levels to include in tags:
+
+| Option       | Example (note path: `Vault/Sociology/Migration.md`) |
+|--------------|------------------------------------------------------|
+| Default (1)  | `#folder`                                         |
+| Depth 2 (split) | `#sub-folder + #main-folder`                        |
+| Depth 2 (single) | `#main-folder/sub-folder`                            |
+| Full path    | `#main-folder/sub-folder/sub-sub-folder`                        |
+
+You can also optionally add a **prefix** or **suffix** to all folder tags, e.g., `prefix-` → `#prefix-folder`.
+
+---
 
 ## Usage
 
-- When a new note is created, the plugin automatically adds a tag matching its folder.
-- If you move or rename a note, the plugin updates the tag to match the new folder.
+- When a new note is created, the plugin automatically adds a folder tag.
+- If a note is moved or renamed, the plugin updates its tag to match the new folder.
 - Use the settings tab to:
-  - Reapply tags to all existing notes.
-  - Remove all folder tags from notes if needed.
+  - **Reapply tags to all notes**: Update all existing notes with the correct folder tags.
+  - **Remove all folder tags**: Removes any tag that matches the note’s folder name (useful to undo plugin changes).
+
+---
 
 ## Settings
 
 - **Override existing tags style**: Forces all tags to follow your chosen style, even on notes with existing tags.
-- **Default tag style**: Choose whether to use YAML frontmatter or inline tags (effective only if override is enabled).
-- **Reapply tags to all notes**: Updates all existing notes with the correct folder tag.
-- **Remove all folder tags**: Removes any tag that matches the note’s folder name (useful to undo plugin changes).
+- **Default tag style**: Choose YAML frontmatter or inline tags (effective only if override is enabled).
+- **Folder Depth**: Configure how many folder levels are used in tags.
+- **Tag Prefix / Suffix**: Optional strings added to the start/end of all folder tags.
+- **Reapply tags to all notes**: Updates all notes with the correct folder tags.
+- **Remove all folder tags**: Removes any folder-named tags from notes.
+
+---
 
 ## License
 
