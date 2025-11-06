@@ -130,12 +130,12 @@ class FolderTagSettingTab extends obsidian.PluginSettingTab {
     display() {
         const { containerEl } = this;
         containerEl.empty();
-        new obsidian.Setting(containerEl).setHeading().setName("Folder to Tag");
+        new obsidian.Setting(containerEl).setHeading().setName("Folder to tag");
         new obsidian.Setting(containerEl)
-            .setName("Folder Depth")
+            .setName("Folder depth")
             .addDropdown(drop => {
             drop.addOption("1", "Depth 1")
-                .addOption("2split", "Depth 2 (Separate tags)")
+                .addOption("2split", "Depth 2 (separate tags)")
                 .addOption("2single", "Depth 2 in one tag")
                 .addOption("full", "Full path")
                 .setValue(this.plugin.settings.folderDepth)
@@ -145,7 +145,7 @@ class FolderTagSettingTab extends obsidian.PluginSettingTab {
             });
         });
         new obsidian.Setting(containerEl)
-            .setName("Tag Prefix")
+            .setName("Tag prefix")
             .addText(txt => txt
             .setValue(this.plugin.settings.tagPrefix)
             .onChange(async (value) => {
@@ -153,7 +153,7 @@ class FolderTagSettingTab extends obsidian.PluginSettingTab {
             await this.plugin.saveSettings();
         }));
         new obsidian.Setting(containerEl)
-            .setName("Tag Suffix")
+            .setName("Tag suffix")
             .addText(txt => txt
             .setValue(this.plugin.settings.tagSuffix)
             .onChange(async (value) => {

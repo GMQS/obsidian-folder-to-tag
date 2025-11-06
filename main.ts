@@ -91,7 +91,7 @@ export default class FolderTagPlugin extends Plugin {
 
             let existingTags: string[] = [];
             if ("tags" in yaml) {
-                if (Array.isArray(yaml.tags)) existingTags.push(...yaml.tags.map((t: any) => String(t).trim()));
+                if (Array.isArray(yaml.tags)) existingTags.push(...yaml.tags.map((t: string | number) => String(t).trim()));
                 else if (typeof yaml.tags === "string") existingTags.push(...yaml.tags.split(",").map((t: string) => t.trim()));
             }
 
@@ -148,13 +148,13 @@ class FolderTagSettingTab extends PluginSettingTab {
     display(): void {
         const { containerEl } = this;
         containerEl.empty();
-        new Setting(containerEl).setHeading().setName("Folder to Tag");
+        new Setting(containerEl).setHeading().setName("Folder to tag");
 
         new Setting(containerEl)
-            .setName("Folder Depth")
+            .setName("Folder depth")
             .addDropdown(drop => {
                 drop.addOption("1", "Depth 1")
-                    .addOption("2split", "Depth 2 (Separate tags)")
+                    .addOption("2split", "Depth 2 (separate tags)")
                     .addOption("2single", "Depth 2 in one tag")
                     .addOption("full", "Full path")
                     .setValue(this.plugin.settings.folderDepth)
@@ -165,7 +165,7 @@ class FolderTagSettingTab extends PluginSettingTab {
             });
 
         new Setting(containerEl)
-            .setName("Tag Prefix")
+            .setName("Tag prefix")
             .addText(txt => txt
                 .setValue(this.plugin.settings.tagPrefix)
                 .onChange(async value => {
@@ -175,7 +175,7 @@ class FolderTagSettingTab extends PluginSettingTab {
             );
 
         new Setting(containerEl)
-            .setName("Tag Suffix")
+            .setName("Tag suffix")
             .addText(txt => txt
                 .setValue(this.plugin.settings.tagSuffix)
                 .onChange(async value => {
