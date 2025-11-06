@@ -203,5 +203,21 @@ class FolderTagSettingTab extends PluginSettingTab {
                     new Notice("Folder tags updated for all notes!");
                 })
             );
+
+
+        new Setting(containerEl)
+            .setName("Remove all folder tags")
+            .addButton(btn => btn
+                .setButtonText("Remove folder tags")
+                .setCta()
+                .onClick(async () => {
+                    new Notice("Removing folder tags from all notes...");
+                    const files = this.plugin.app.vault.getMarkdownFiles();
+                    for (const file of files) {
+                        await this.plugin.removeFolderTags(file);
+                    }
+                    new Notice("All folder tags removed!");
+                })
+            );
     }
 }
