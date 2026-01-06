@@ -62,6 +62,12 @@ class FolderTagPlugin extends obsidian.Plugin {
             case "full":
                 tags.push(tagPrefix + parts.join("/") + tagSuffix);
                 break;
+            case "allsplit":
+                // Add each directory in the path as a separate tag
+                parts.forEach(part => {
+                    tags.push(tagPrefix + part + tagSuffix);
+                });
+                break;
         }
         return tags;
     }
@@ -138,6 +144,7 @@ class FolderTagSettingTab extends obsidian.PluginSettingTab {
                 .addOption("2split", "Depth 2 (separate tags)")
                 .addOption("2single", "Depth 2 in one tag")
                 .addOption("full", "Full path")
+                .addOption("allsplit", "All directories (separate tags)")
                 .setValue(this.plugin.settings.folderDepth)
                 .onChange(async (value) => {
                 this.plugin.settings.folderDepth = value;

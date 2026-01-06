@@ -1,7 +1,7 @@
 import { App, Plugin, TFile, Notice, PluginSettingTab, Setting, normalizePath } from "obsidian";
 
 interface FolderTagPluginSettings {
-    folderDepth: "1" | "2split" | "2single" | "full";
+    folderDepth: "1" | "2split" | "2single" | "full" | "allsplit";
     tagPrefix: string;
     tagSuffix: string;
 }
@@ -73,6 +73,12 @@ export default class FolderTagPlugin extends Plugin {
                 break;
             case "full":
                 tags.push(tagPrefix + parts.join("/") + tagSuffix);
+                break;
+            case "allsplit":
+                // Add each directory in the path as a separate tag
+                parts.forEach(part => {
+                    tags.push(tagPrefix + part + tagSuffix);
+                });
                 break;
         }
 
@@ -157,6 +163,7 @@ class FolderTagSettingTab extends PluginSettingTab {
                     .addOption("2split", "Depth 2 (separate tags)")
                     .addOption("2single", "Depth 2 in one tag")
                     .addOption("full", "Full path")
+                    .addOption("allsplit", "All directories (separate tags)")
                     .setValue(this.plugin.settings.folderDepth)
                     .onChange(async value => {
                         this.plugin.settings.folderDepth = value as FolderTagPluginSettings["folderDepth"];
