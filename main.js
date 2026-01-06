@@ -89,9 +89,14 @@ class FolderTagPlugin extends obsidian.Plugin {
                     existingTags.push(...yaml.tags.split(",").map((t) => t.trim()));
             }
             // Remove old folder tags if moving/rerunning
-            if ((action === "move" || action === "rerun") && oldPath) {
+            if (action === "move" && oldPath) {
                 const oldTags = this.getFolderTagsFromPath(oldPath);
                 existingTags = existingTags.filter(t => !oldTags.includes(t));
+            }
+            else if (action === "rerun") {
+                // For rerun, remove existing folder tags from current path before re-adding
+                const currentTags = this.getFolderTagsFromPath(file.path);
+                existingTags = existingTags.filter(t => !currentTags.includes(t));
             }
             // Add new folder tags
             folderTags.forEach(t => { if (!existingTags.includes(t))
