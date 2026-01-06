@@ -62,6 +62,12 @@ class FolderTagPlugin extends obsidian.Plugin {
             case "full":
                 tags.push(tagPrefix + parts.join("/") + tagSuffix);
                 break;
+            case "allsplit":
+                // Add each directory in the path as a separate tag
+                parts.forEach(part => {
+                    tags.push(tagPrefix + part + tagSuffix);
+                });
+                break;
         }
         return tags;
     }
@@ -83,9 +89,16 @@ class FolderTagPlugin extends obsidian.Plugin {
                     existingTags.push(...yaml.tags.split(",").map((t) => t.trim()));
             }
             // Remove old folder tags if moving/rerunning
-            if ((action === "move" || action === "rerun") && oldPath) {
+            if (action === "move" && oldPath) {
+                // For move: remove tags based on the old file path
                 const oldTags = this.getFolderTagsFromPath(oldPath);
                 existingTags = existingTags.filter(t => !oldTags.includes(t));
+            }
+            else if (action === "rerun") {
+                // For rerun: remove tags based on current path (to handle setting changes)
+                // This ensures tags are refreshed when depth setting changes
+                const currentTags = this.getFolderTagsFromPath(file.path);
+                existingTags = existingTags.filter(t => !currentTags.includes(t));
             }
             // Add new folder tags
             folderTags.forEach(t => { if (!existingTags.includes(t))
@@ -138,6 +151,7 @@ class FolderTagSettingTab extends obsidian.PluginSettingTab {
                 .addOption("2split", "Depth 2 (separate tags)")
                 .addOption("2single", "Depth 2 in one tag")
                 .addOption("full", "Full path")
+                .addOption("allsplit", "All directories (separate tags)")
                 .setValue(this.plugin.settings.folderDepth)
                 .onChange(async (value) => {
                 this.plugin.settings.folderDepth = value;
