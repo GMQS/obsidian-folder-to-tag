@@ -103,10 +103,12 @@ export default class FolderTagPlugin extends Plugin {
 
             // Remove old folder tags if moving/rerunning
             if (action === "move" && oldPath) {
+                // For move: remove tags based on the old file path
                 const oldTags = this.getFolderTagsFromPath(oldPath);
                 existingTags = existingTags.filter(t => !oldTags.includes(t));
             } else if (action === "rerun") {
-                // For rerun, remove existing folder tags from current path before re-adding
+                // For rerun: remove tags based on current path (to handle setting changes)
+                // This ensures tags are refreshed when depth setting changes
                 const currentTags = this.getFolderTagsFromPath(file.path);
                 existingTags = existingTags.filter(t => !currentTags.includes(t));
             }
