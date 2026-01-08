@@ -1,7 +1,4 @@
 {
-  "folderDepth": "allsplit",
-  "tagPrefix": "",
-  "tagSuffix": "",
   "directoryTagMappings": [
     {
       "directory": "インフラ/aws/ebs",
@@ -9,7 +6,5 @@
         "ストレージ"
       ]
     }
-  ],
-  "overrideExisting": false,
-  "defaultTagStyle": "yaml"
+  ]
 }
