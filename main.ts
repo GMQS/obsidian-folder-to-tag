@@ -291,6 +291,112 @@ export default class FolderTagPlugin extends Plugin {
 
         return removedCount;
     }
+
+    // -------------------------
+    // Apply tags for a specific directory mapping to existing notes
+    // -------------------------
+    async applyTagsForMapping(mapping: DirectoryTagMapping) {
+        if (!mapping.directory || mapping.tags.length === 0) {
+            return 0;
+        }
+
+        const files = this.app.vault.getMarkdownFiles();
+        let appliedCount = 0;
+
+        for (const file of files) {
+            const normalized = normalizePath(file.path);
+            const dirPath = normalized.split("/").slice(0, -1).join("/");
+            const normalizedDir = normalizePath(mapping.directory);
+
+            // Check if file is in this directory
+            if (dirPath === normalizedDir || dirPath.startsWith(normalizedDir + "/")) {
+                await this.app.fileManager.processFrontMatter(file, yaml => {
+                    if (!yaml || typeof yaml !== "object") return;
+
+                    let existingTags: string[] = [];
+                    if ("tags" in yaml) {
+                        const val = yaml.tags;
+                        if (Array.isArray(val)) existingTags.push(...val.map(v => String(v).trim()));
+                        else if (typeof val === "string") existingTags.push(...val.split(",").map(v => v.trim()));
+                    }
+
+                    const originalLength = existingTags.length;
+                    // Add tags from this mapping
+                    mapping.tags.forEach(tag => {
+                        if (!existingTags.includes(tag)) {
+                            existingTags.push(tag);
+                        }
+                    });
+
+                    if (existingTags.length > originalLength) {
+                        appliedCount++;
+                    }
+
+                    yaml.tags = existingTags;
+                });
+            }
+        }
+
+        return appliedCount;
+    }
+
+    // -------------------------
+    // Update tags when mapping tags are changed
+    // -------------------------
+    async updateTagsForMapping(mapping: DirectoryTagMapping, oldTags: string[]) {
+        if (!mapping.directory) {
+            return 0;
+        }
+
+        const files = this.app.vault.getMarkdownFiles();
+        let updatedCount = 0;
+
+        for (const file of files) {
+            const normalized = normalizePath(file.path);
+            const dirPath = normalized.split("/").slice(0, -1).join("/");
+            const normalizedDir = normalizePath(mapping.directory);
+
+            // Check if file is in this directory
+            if (dirPath === normalizedDir || dirPath.startsWith(normalizedDir + "/")) {
+                await this.app.fileManager.processFrontMatter(file, yaml => {
+                    if (!yaml || typeof yaml !== "object") return;
+
+                    let existingTags: string[] = [];
+                    if ("tags" in yaml) {
+                        const val = yaml.tags;
+                        if (Array.isArray(val)) existingTags.push(...val.map(v => String(v).trim()));
+                        else if (typeof val === "string") existingTags.push(...val.split(",").map(v => v.trim()));
+                    }
+
+                    let modified = false;
+
+                    // Remove old tags
+                    const beforeRemoval = existingTags.length;
+                    existingTags = existingTags.filter(t => !oldTags.includes(t));
+                    if (existingTags.length < beforeRemoval) {
+                        modified = true;
+                    }
+
+                    // Add new tags
+                    mapping.tags.forEach(tag => {
+                        if (!existingTags.includes(tag)) {
+                            existingTags.push(tag);
+                            modified = true;
+                        }
+                    });
+
+                    if (modified) {
+                        updatedCount++;
+                    }
+
+                    if (existingTags.length === 0) delete yaml.tags;
+                    else yaml.tags = existingTags;
+                });
+            }
+        }
+
+        return updatedCount;
+    }
 }
 
 // -------------------------
@@ -351,6 +457,9 @@ class FolderTagSettingTab extends PluginSettingTab {
 
     displayDirectoryMappings(containerEl: HTMLElement): void {
         this.plugin.settings.directoryTagMappings.forEach((mapping, index) => {
+            // Store original tags to detect changes
+            const originalTags = [...mapping.tags];
+            
             const setting = new Setting(containerEl)
                 .setClass("directory-mapping-item")
                 .addText(text => text
@@ -365,8 +474,41 @@ class FolderTagSettingTab extends PluginSettingTab {
                     .setPlaceholder("Tags (comma-separated, e.g., php, aws)")
                     .setValue(mapping.tags.join(", "))
                     .onChange(async (value) => {
-                        mapping.tags = this.plugin.parseTagsFromString(value);
-                        await this.plugin.saveSettings();
+                        const newTags = this.plugin.parseTagsFromString(value);
+                        
+                        // Check if tags actually changed
+                        const tagsChanged = JSON.stringify(originalTags.sort()) !== JSON.stringify(newTags.sort());
+                        
+                        if (tagsChanged && originalTags.length > 0 && mapping.directory) {
+                            // Ask user if they want to update existing notes
+                            const message = `Update tags in existing notes?\n\nOld tags: [${originalTags.join(", ")}]\nNew tags: [${newTags.join(", ")}]\n\nThis will update all notes in "${mapping.directory}".`;
+                            
+                            new ConfirmationModal(this.app, message, async () => {
+                                new Notice("Updating tags in notes...");
+                                mapping.tags = newTags;
+                                const updatedCount = await this.plugin.updateTagsForMapping(mapping, originalTags);
+                                await this.plugin.saveSettings();
+                                new Notice(`Tags updated in ${updatedCount} note(s).`);
+                                this.display();
+                            }).open();
+                        } else {
+                            mapping.tags = newTags;
+                            await this.plugin.saveSettings();
+                        }
+                    })
+                )
+                .addButton(btn => btn
+                    .setButtonText("Apply")
+                    .setTooltip("Apply these tags to existing notes in this directory")
+                    .onClick(async () => {
+                        if (!mapping.directory || mapping.tags.length === 0) {
+                            new Notice("Please set directory path and tags first.");
+                            return;
+                        }
+                        
+                        new Notice("Applying tags to existing notes...");
+                        const appliedCount = await this.plugin.applyTagsForMapping(mapping);
+                        new Notice(`Tags applied to ${appliedCount} note(s).`);
                     })
                 )
                 .addButton(btn => btn
