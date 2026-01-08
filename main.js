@@ -5,7 +5,8 @@ var obsidian = require('obsidian');
 const DEFAULT_SETTINGS = {
     folderDepth: "1",
     tagPrefix: "",
-    tagSuffix: ""
+    tagSuffix: "",
+    directoryTagMappings: []
 };
 class FolderTagPlugin extends obsidian.Plugin {
     async onload() {
@@ -71,11 +72,34 @@ class FolderTagPlugin extends obsidian.Plugin {
         }
         return tags;
     }
+    getCustomDirectoryTags(path) {
+        const normalized = obsidian.normalizePath(path);
+        const customTags = [];
+        // Get the directory path (remove the filename)
+        const dirPath = normalized.split("/").slice(0, -1).join("/");
+        // Check each directory in the path against custom mappings
+        for (const mapping of this.settings.directoryTagMappings) {
+            const normalizedDir = obsidian.normalizePath(mapping.directory);
+            // Check if the file is within this directory
+            // Either the dir path equals the mapping directory, or it's a subdirectory
+            if (dirPath === normalizedDir || dirPath.startsWith(normalizedDir + "/")) {
+                customTags.push(...mapping.tags);
+            }
+        }
+        return customTags;
+    }
+    getAllTags(path) {
+        const folderTags = this.getFolderTagsFromPath(path);
+        const customTags = this.getCustomDirectoryTags(path);
+        // Combine and deduplicate tags
+        const allTags = [...folderTags, ...customTags];
+        return [...new Set(allTags)];
+    }
     // -------------------------
     // Apply folder tags
     // -------------------------
     async applyFolderTag(file, action, oldPath) {
-        const folderTags = this.getFolderTags(file);
+        const folderTags = this.getAllTags(file.path);
         if (!folderTags.length)
             return;
         await this.app.fileManager.processFrontMatter(file, yaml => {
@@ -91,13 +115,13 @@ class FolderTagPlugin extends obsidian.Plugin {
             // Remove old folder tags if moving/rerunning
             if (action === "move" && oldPath) {
                 // For move: remove tags based on the old file path
-                const oldTags = this.getFolderTagsFromPath(oldPath);
+                const oldTags = this.getAllTags(oldPath);
                 existingTags = existingTags.filter(t => !oldTags.includes(t));
             }
             else if (action === "rerun") {
                 // For rerun: remove tags based on current path (to handle setting changes)
                 // This ensures tags are refreshed when depth setting changes
-                const currentTags = this.getFolderTagsFromPath(file.path);
+                const currentTags = this.getAllTags(file.path);
                 existingTags = existingTags.filter(t => !currentTags.includes(t));
             }
             // Add new folder tags
@@ -110,7 +134,7 @@ class FolderTagPlugin extends obsidian.Plugin {
     // Remove folder tags
     // -------------------------
     async removeFolderTags(file) {
-        const folderTags = this.getFolderTags(file);
+        const folderTags = this.getAllTags(file.path);
         if (!folderTags.length)
             return;
         await this.app.fileManager.processFrontMatter(file, yaml => {
@@ -139,6 +163,34 @@ class FolderTagSettingTab extends obsidian.PluginSettingTab {
     constructor(app, plugin) {
         super(app, plugin);
         this.plugin = plugin;
+    }
+    displayDirectoryMappings(containerEl) {
+        this.plugin.settings.directoryTagMappings.forEach((mapping, index) => {
+            new obsidian.Setting(containerEl)
+                .setClass("directory-mapping-item")
+                .addText(text => text
+                .setPlaceholder("Directory path (e.g., php-aws-sdk)")
+                .setValue(mapping.directory)
+                .onChange(async (value) => {
+                mapping.directory = value;
+                await this.plugin.saveSettings();
+            }))
+                .addText(text => text
+                .setPlaceholder("Tags (comma-separated, e.g., php, aws)")
+                .setValue(mapping.tags.join(", "))
+                .onChange(async (value) => {
+                mapping.tags = value.split(",").map(t => t.trim()).filter(t => t.length > 0);
+                await this.plugin.saveSettings();
+            }))
+                .addButton(btn => btn
+                .setButtonText("Remove")
+                .setWarning()
+                .onClick(async () => {
+                this.plugin.settings.directoryTagMappings.splice(index, 1);
+                await this.plugin.saveSettings();
+                this.display();
+            }));
+        });
     }
     display() {
         const { containerEl } = this;
@@ -173,6 +225,23 @@ class FolderTagSettingTab extends obsidian.PluginSettingTab {
             .onChange(async (value) => {
             this.plugin.settings.tagSuffix = value;
             await this.plugin.saveSettings();
+        }));
+        // Custom Directory Tags Section
+        new obsidian.Setting(containerEl).setHeading().setName("Custom directory tags");
+        new obsidian.Setting(containerEl)
+            .setName("Directory tag mappings")
+            .setDesc("Add custom tags for specific directories. Example: 'php-aws-sdk' → tags: 'php, aws'");
+        this.displayDirectoryMappings(containerEl);
+        new obsidian.Setting(containerEl)
+            .addButton(btn => btn
+            .setButtonText("Add directory mapping")
+            .onClick(async () => {
+            this.plugin.settings.directoryTagMappings.push({
+                directory: "",
+                tags: []
+            });
+            await this.plugin.saveSettings();
+            this.display();
         }));
         new obsidian.Setting(containerEl)
             .setName("Reapply tags to all notes")
