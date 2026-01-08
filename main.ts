@@ -112,6 +112,8 @@ export default class FolderTagPlugin extends Plugin {
     // -------------------------
     private findParentDirectoryMapping(dirPath: string): DirectoryTagMapping | null {
         const normalized = normalizePath(dirPath);
+        let closestParent: DirectoryTagMapping | null = null;
+        let closestParentDepth = -1;
         
         // Check each mapping to see if it's a parent of this directory
         for (const mapping of this.settings.directoryTagMappings) {
@@ -122,11 +124,16 @@ export default class FolderTagPlugin extends Plugin {
             
             // Check if the mapping is a parent directory
             if (normalized.startsWith(normalizedMapping + "/")) {
-                return mapping;
+                // Find the closest parent (deepest in the hierarchy)
+                const depth = normalizedMapping.split("/").length;
+                if (depth > closestParentDepth) {
+                    closestParent = mapping;
+                    closestParentDepth = depth;
+                }
             }
         }
         
-        return null;
+        return closestParent;
     }
 
     // -------------------------
