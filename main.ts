@@ -423,7 +423,7 @@ class ConfirmationModal extends Modal {
         
         const buttonContainer = contentEl.createDiv({ cls: "modal-button-container" });
         
-        const confirmBtn = buttonContainer.createEl("button", { 
+        const confirmBtn = buttonContainer.createEl("button", {
             text: "Confirm",
             cls: "mod-cta"
         });
@@ -432,7 +432,7 @@ class ConfirmationModal extends Modal {
             this.onConfirm();
         });
         
-        const cancelBtn = buttonContainer.createEl("button", { 
+        const cancelBtn = buttonContainer.createEl("button", {
             text: "Cancel"
         });
         cancelBtn.addEventListener("click", () => {
@@ -469,7 +469,7 @@ class FolderTagSettingTab extends PluginSettingTab {
             const setting = new Setting(containerEl)
                 .setClass("directory-mapping-item")
                 .addText(text => {
-                    text.setPlaceholder("Directory path (e.g., php-aws-sdk)")
+                    text.setPlaceholder("Directory path (e.g., parent-folder/sub-folder)")
                         .setValue(mapping.directory);
                     
                     // Handle blur event for directory path
@@ -512,7 +512,7 @@ class FolderTagSettingTab extends PluginSettingTab {
                     });
                 })
                 .addText(text => {
-                    text.setPlaceholder("Tags (comma-separated, e.g., php, aws)")
+                    text.setPlaceholder("Tags (comma-separated, e.g., python, server-script)")
                         .setValue(mapping.tags.join(", "));
                     
                     // Handle blur event for tags
