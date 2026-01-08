@@ -19,6 +19,9 @@ class FolderTagPlugin extends obsidian.Plugin {
         }));
         this.registerEvent(this.app.vault.on("rename", async (file, oldPath) => {
             if (file instanceof obsidian.TFile && file.extension === "md") {
+                // Handle directory rename in settings
+                await this.handleDirectoryRename(oldPath, file.path);
+                // Apply folder tags for the moved file
                 await this.applyFolderTag(file, "move", oldPath);
             }
         }));
@@ -74,6 +77,34 @@ class FolderTagPlugin extends obsidian.Plugin {
     }
     parseTagsFromString(tagsString) {
         return tagsString.split(",").map(t => t.trim()).filter(t => t.length > 0);
+    }
+    // -------------------------
+    // Handle directory rename in settings
+    // -------------------------
+    async handleDirectoryRename(oldPath, newPath) {
+        const oldDir = obsidian.normalizePath(oldPath).split("/").slice(0, -1).join("/");
+        const newDir = obsidian.normalizePath(newPath).split("/").slice(0, -1).join("/");
+        // Check if directory actually changed
+        if (oldDir === newDir)
+            return;
+        // Track if any mappings were updated
+        let updated = false;
+        // Update any matching directory mappings
+        for (const mapping of this.settings.directoryTagMappings) {
+            const normalizedMapping = obsidian.normalizePath(mapping.directory);
+            // Check if the mapping matches the old directory or is a subdirectory of it
+            if (normalizedMapping === oldDir || normalizedMapping.startsWith(oldDir + "/")) {
+                // Replace the old directory path with the new one
+                const relativePath = normalizedMapping.substring(oldDir.length);
+                mapping.directory = newDir + relativePath;
+                updated = true;
+            }
+        }
+        // Save settings if any mappings were updated
+        if (updated) {
+            await this.saveSettings();
+            new obsidian.Notice("Directory mappings updated for renamed folder");
+        }
     }
     getCustomDirectoryTags(path) {
         const normalized = obsidian.normalizePath(path);
