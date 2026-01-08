@@ -539,21 +539,13 @@ class FolderTagSettingTab extends PluginSettingTab {
                                 mapping.tags = originalTags;
                             }).open();
                         } else if (tagsChanged && originalTags.length === 0 && mapping.directory && newTags.length > 0) {
-                            // First time adding tags - apply to existing notes
-                            const message = `Apply tags to existing notes?\n\nTags: [${newTags.join(", ")}]\n\nThis will add these tags to all notes in "${mapping.directory}".`;
-                            
-                            new ConfirmationModal(this.app, message, async () => {
-                                new Notice("Applying tags to existing notes...");
-                                mapping.tags = newTags;
-                                await this.plugin.saveSettings();
-                                const appliedCount = await this.plugin.applyTagsForMapping(mapping);
-                                new Notice(`Tags applied to ${appliedCount} note(s).`);
-                                this.display();
-                            }, () => {
-                                // On cancel, restore original value
-                                text.setValue(originalTags.join(", "));
-                                mapping.tags = originalTags;
-                            }).open();
+                            // First time adding tags - apply to existing notes automatically without confirmation
+                            new Notice("Applying tags to existing notes...");
+                            mapping.tags = newTags;
+                            await this.plugin.saveSettings();
+                            const appliedCount = await this.plugin.applyTagsForMapping(mapping);
+                            new Notice(`Tags applied to ${appliedCount} note(s).`);
+                            this.display();
                         } else {
                             mapping.tags = newTags;
                             await this.plugin.saveSettings();
