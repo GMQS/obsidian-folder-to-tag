@@ -7,27 +7,27 @@ Ideal for users who organize notes by folder but want to leverage tags for easie
 
 ## Features
 
-* Automatically adds a tag that matches the folder(s) of each note in frontmatter.
+* Automatically adds tags that match **all folders** in the path of each note in frontmatter (each directory becomes a separate tag).
 * **Custom directory tags**: Assign specific tags to any directory (e.g., `php-aws-sdk` directory gets both `php` and `aws` tags).
 * Updates tags when notes are **moved or renamed**.
 * Preserves all other frontmatter fields (aliases, dates, custom properties, etc.).
 * Compatible with existing frontmatter that do or do not have `tags:`.
-* Configurable **folder depth** and **tag formatting**.
 * Optional **prefix** and **suffix** for tags.
+* **Clean and reapply**: Rechecks all settings and directory structure, then cleanly reapplies all tags.
+* **Complete reset**: Removes all plugin-generated tags and clears custom directory mappings.
 
 ---
 
-## Folder Depth Options
+## Tag Behavior
 
-Choose how many folder levels to include in tags:
+All directories in the path are added as separate tags:
 
-| Option                     | Example (note path: `main-folder/sub-folder/last-folder/note.md`) |
-| -------------------------- | ----------------------------------------------------------------- |
-| Default (1)                | `#last-folder`                                                    |
-| Depth 2 (split)            | `#last-folder + #sub-folder`                                      |
-| Depth 2 (single)           | `#sub-folder/last-folder`                                         |
-| Full path                  | `#main-folder/sub-folder/last-folder`                             |
-| All directories (separate) | `#main-folder + #sub-folder + #last-folder`                       |
+| Note path                                          | Generated tags                                      |
+| -------------------------------------------------- | --------------------------------------------------- |
+| `note.md`                                          | (no tags - note is in root)                         |
+| `folder/note.md`                                   | `#folder`                                           |
+| `main-folder/sub-folder/note.md`                   | `#main-folder`, `#sub-folder`                       |
+| `main-folder/sub-folder/last-folder/note.md`       | `#main-folder`, `#sub-folder`, `#last-folder`       |
 
 You can also optionally add a **prefix** or **suffix** to all folder tags, e.g., `prefix-` → `#prefix-folder`.
 
@@ -51,14 +51,38 @@ In addition to automatic folder-based tags, you can define custom tag mappings f
 
 ---
 
+## Settings
+
+### Tag Prefix and Suffix
+Add an optional prefix or suffix to all automatically-generated folder tags.
+- **Prefix**: Text added before each folder name (e.g., `folder/` → `#folder/`)
+- **Suffix**: Text added after each folder name (e.g., `/folder` → `#/folder`)
+
+### Custom Directory Tags
+Map specific directories to custom tags. These tags are applied in addition to the automatic folder-based tags.
+
+### Operations
+
+#### Clean and Reapply All Tags
+Rechecks all settings and directory structure, then cleanly reapplies all tags to all notes. Use this to:
+- Update tags after changing prefix/suffix settings
+- Fix any inconsistencies in your tags
+- Ensure all notes have the correct tags
+
+#### Complete Reset
+Removes all plugin-generated tags from all notes and clears all custom directory mappings. **This action cannot be undone.**
+
+Use this when you want to start fresh or before uninstalling the plugin.
+
+---
+
 ## Usage
 
 * When a new note is created, the plugin automatically adds folder tag(s) to the `tags:` property.
 * If a note is moved or renamed, the plugin updates its tag(s) to match the new folder path.
-* Use the settings tab to:
-
-  * **Reapply tags to all notes**: Updates all notes with the correct folder tags in frontmatter.
-  * **Remove all folder tags**: Removes any tag matching the note’s folder from the frontmatter `tags:` property. Preserving any other frontmatter (including other tags).
+* Use the settings tab to configure prefixes, suffixes, and custom directory mappings.
+* Use "Clean and Reapply All Tags" to update all notes after changing settings.
+* Use "Complete Reset" to remove all plugin-generated tags before uninstalling.
 
 ---
 
