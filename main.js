@@ -6,16 +6,22 @@ const DEFAULT_SETTINGS = {
     directoryTagMappings: []
 };
 class FolderTagPlugin extends obsidian.Plugin {
+    // -------------------------
+    // Check and handle new subdirectory creation
+    // -------------------------
+    async checkAndHandleNewSubdirectory(filePath) {
+        const dirPath = obsidian.normalizePath(filePath).split("/").slice(0, -1).join("/");
+        if (dirPath) {
+            await this.handleNewSubdirectory(dirPath);
+        }
+    }
     async onload() {
         await this.loadSettings();
         this.addSettingTab(new FolderTagSettingTab(this.app, this));
         this.registerEvent(this.app.vault.on("create", async (file) => {
             if (file instanceof obsidian.TFile && file.extension === "md") {
                 // Check for new subdirectory creation
-                const dirPath = obsidian.normalizePath(file.path).split("/").slice(0, -1).join("/");
-                if (dirPath) {
-                    await this.handleNewSubdirectory(dirPath);
-                }
+                await this.checkAndHandleNewSubdirectory(file.path);
                 await this.applyFolderTag(file, "create");
             }
         }));
@@ -24,10 +30,7 @@ class FolderTagPlugin extends obsidian.Plugin {
                 // Handle directory rename in settings
                 await this.handleDirectoryRename(oldPath, file.path);
                 // Check for new subdirectory creation
-                const dirPath = obsidian.normalizePath(file.path).split("/").slice(0, -1).join("/");
-                if (dirPath) {
-                    await this.handleNewSubdirectory(dirPath);
-                }
+                await this.checkAndHandleNewSubdirectory(file.path);
                 // Apply folder tags for the moved file
                 await this.applyFolderTag(file, "move", oldPath);
             }
@@ -119,6 +122,7 @@ class FolderTagPlugin extends obsidian.Plugin {
     async handleNewSubdirectory(dirPath) {
         const normalized = obsidian.normalizePath(dirPath);
         // Skip if this directory already has a mapping
+        // This prevents overwriting user-customized mappings and avoids duplicate processing
         if (this.hasDirectoryMapping(normalized)) {
             return;
         }

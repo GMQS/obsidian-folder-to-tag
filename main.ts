@@ -16,6 +16,16 @@ const DEFAULT_SETTINGS: FolderTagPluginSettings = {
 export default class FolderTagPlugin extends Plugin {
     settings!: FolderTagPluginSettings;
 
+    // -------------------------
+    // Check and handle new subdirectory creation
+    // -------------------------
+    private async checkAndHandleNewSubdirectory(filePath: string) {
+        const dirPath = normalizePath(filePath).split("/").slice(0, -1).join("/");
+        if (dirPath) {
+            await this.handleNewSubdirectory(dirPath);
+        }
+    }
+
     async onload() {
         await this.loadSettings();
         this.addSettingTab(new FolderTagSettingTab(this.app, this));
@@ -23,10 +33,7 @@ export default class FolderTagPlugin extends Plugin {
         this.registerEvent(this.app.vault.on("create", async (file) => {
             if (file instanceof TFile && file.extension === "md") {
                 // Check for new subdirectory creation
-                const dirPath = normalizePath(file.path).split("/").slice(0, -1).join("/");
-                if (dirPath) {
-                    await this.handleNewSubdirectory(dirPath);
-                }
+                await this.checkAndHandleNewSubdirectory(file.path);
                 
                 await this.applyFolderTag(file, "create");
             }
@@ -38,10 +45,7 @@ export default class FolderTagPlugin extends Plugin {
                 await this.handleDirectoryRename(oldPath, file.path);
                 
                 // Check for new subdirectory creation
-                const dirPath = normalizePath(file.path).split("/").slice(0, -1).join("/");
-                if (dirPath) {
-                    await this.handleNewSubdirectory(dirPath);
-                }
+                await this.checkAndHandleNewSubdirectory(file.path);
                 
                 // Apply folder tags for the moved file
                 await this.applyFolderTag(file, "move", oldPath);
@@ -153,6 +157,7 @@ export default class FolderTagPlugin extends Plugin {
         const normalized = normalizePath(dirPath);
         
         // Skip if this directory already has a mapping
+        // This prevents overwriting user-customized mappings and avoids duplicate processing
         if (this.hasDirectoryMapping(normalized)) {
             return;
         }
