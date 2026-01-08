@@ -12,7 +12,6 @@ Ideal for users who organize notes by folder but want to leverage tags for easie
 * Updates tags when notes are **moved or renamed**.
 * Preserves all other frontmatter fields (aliases, dates, custom properties, etc.).
 * Compatible with existing frontmatter that do or do not have `tags:`.
-* Optional **prefix** and **suffix** for tags.
 * **Clean and reapply**: Rechecks all settings and directory structure, then cleanly reapplies all tags.
 * **Complete reset**: Removes all plugin-generated tags and clears custom directory mappings.
 
@@ -28,8 +27,6 @@ All directories in the path are added as separate tags:
 | `folder/note.md`                                   | `#folder`                                           |
 | `main-folder/sub-folder/note.md`                   | `#main-folder`, `#sub-folder`                       |
 | `main-folder/sub-folder/last-folder/note.md`       | `#main-folder`, `#sub-folder`, `#last-folder`       |
-
-You can also optionally add a **prefix** or **suffix** to all folder tags, e.g., `prefix-` → `#prefix-folder`.
 
 ---
 
@@ -47,16 +44,11 @@ In addition to automatic folder-based tags, you can define custom tag mappings f
 2. Under "Custom directory tags", click "Add directory mapping"
 3. Enter the directory path (e.g., `php-aws-sdk`)
 4. Enter tags separated by commas (e.g., `php, aws`)
-5. Click "Reapply tags to all notes" to update existing notes
+5. Tags are automatically applied to existing notes when you save the mapping
 
 ---
 
 ## Settings
-
-### Tag Prefix and Suffix
-Add an optional prefix or suffix to all automatically-generated folder tags.
-- **Prefix**: Text added before each folder name (e.g., `folder/` → `#folder/`)
-- **Suffix**: Text added after each folder name (e.g., `/folder` → `#/folder`)
 
 ### Custom Directory Tags
 Map specific directories to custom tags. These tags are applied in addition to the automatic folder-based tags.
@@ -65,7 +57,6 @@ Map specific directories to custom tags. These tags are applied in addition to t
 
 #### Clean and Reapply All Tags
 Rechecks all settings and directory structure, then cleanly reapplies all tags to all notes. Use this to:
-- Update tags after changing prefix/suffix settings
 - Fix any inconsistencies in your tags
 - Ensure all notes have the correct tags
 
@@ -80,8 +71,8 @@ Use this when you want to start fresh or before uninstalling the plugin.
 
 * When a new note is created, the plugin automatically adds folder tag(s) to the `tags:` property.
 * If a note is moved or renamed, the plugin updates its tag(s) to match the new folder path.
-* Use the settings tab to configure prefixes, suffixes, and custom directory mappings.
-* Use "Clean and Reapply All Tags" to update all notes after changing settings.
+* Use the settings tab to configure custom directory mappings.
+* Use "Clean and Reapply All Tags" to ensure all notes have correct tags.
 * Use "Complete Reset" to remove all plugin-generated tags before uninstalling.
 
 ---

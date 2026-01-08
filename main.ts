@@ -6,14 +6,10 @@ interface DirectoryTagMapping {
 }
 
 interface FolderTagPluginSettings {
-    tagPrefix: string;
-    tagSuffix: string;
     directoryTagMappings: DirectoryTagMapping[];
 }
 
 const DEFAULT_SETTINGS: FolderTagPluginSettings = {
-    tagPrefix: "",
-    tagSuffix: "",
     directoryTagMappings: []
 };
 
@@ -58,15 +54,8 @@ export default class FolderTagPlugin extends Plugin {
         const parts = normalized.split("/").slice(0, -1);
         if (!parts.length) return [];
 
-        const { tagPrefix, tagSuffix } = this.settings;
-        const tags: string[] = [];
-
-        // Always use allsplit behavior: Add each directory in the path as a separate tag
-        parts.forEach(part => {
-            tags.push(tagPrefix + part + tagSuffix);
-        });
-
-        return tags;
+        // Add each directory in the path as a separate tag
+        return parts.map(part => part);
     }
 
     parseTagsFromString(tagsString: string): string[] {
@@ -567,26 +556,6 @@ class FolderTagSettingTab extends PluginSettingTab {
         const { containerEl } = this;
         containerEl.empty();
         new Setting(containerEl).setHeading().setName("Folder to tag");
-
-        new Setting(containerEl)
-            .setName("Tag prefix")
-            .addText(txt => txt
-                .setValue(this.plugin.settings.tagPrefix)
-                .onChange(async value => {
-                    this.plugin.settings.tagPrefix = value;
-                    await this.plugin.saveSettings();
-                })
-            );
-
-        new Setting(containerEl)
-            .setName("Tag suffix")
-            .addText(txt => txt
-                .setValue(this.plugin.settings.tagSuffix)
-                .onChange(async value => {
-                    this.plugin.settings.tagSuffix = value;
-                    await this.plugin.saveSettings();
-                })
-            );
 
         // Custom Directory Tags Section
         new Setting(containerEl).setHeading().setName("Custom directory tags");

@@ -3,8 +3,6 @@
 var obsidian = require('obsidian');
 
 const DEFAULT_SETTINGS = {
-    tagPrefix: "",
-    tagSuffix: "",
     directoryTagMappings: []
 };
 class FolderTagPlugin extends obsidian.Plugin {
@@ -39,13 +37,8 @@ class FolderTagPlugin extends obsidian.Plugin {
         const parts = normalized.split("/").slice(0, -1);
         if (!parts.length)
             return [];
-        const { tagPrefix, tagSuffix } = this.settings;
-        const tags = [];
-        // Always use allsplit behavior: Add each directory in the path as a separate tag
-        parts.forEach(part => {
-            tags.push(tagPrefix + part + tagSuffix);
-        });
-        return tags;
+        // Add each directory in the path as a separate tag
+        return parts.map(part => part);
     }
     parseTagsFromString(tagsString) {
         return tagsString.split(",").map(t => t.trim()).filter(t => t.length > 0);
@@ -483,22 +476,6 @@ class FolderTagSettingTab extends obsidian.PluginSettingTab {
         const { containerEl } = this;
         containerEl.empty();
         new obsidian.Setting(containerEl).setHeading().setName("Folder to tag");
-        new obsidian.Setting(containerEl)
-            .setName("Tag prefix")
-            .addText(txt => txt
-            .setValue(this.plugin.settings.tagPrefix)
-            .onChange(async (value) => {
-            this.plugin.settings.tagPrefix = value;
-            await this.plugin.saveSettings();
-        }));
-        new obsidian.Setting(containerEl)
-            .setName("Tag suffix")
-            .addText(txt => txt
-            .setValue(this.plugin.settings.tagSuffix)
-            .onChange(async (value) => {
-            this.plugin.settings.tagSuffix = value;
-            await this.plugin.saveSettings();
-        }));
         // Custom Directory Tags Section
         new obsidian.Setting(containerEl).setHeading().setName("Custom directory tags");
         new obsidian.Setting(containerEl)
