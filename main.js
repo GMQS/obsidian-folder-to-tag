@@ -355,10 +355,11 @@ class FolderTagPlugin extends obsidian.Plugin {
 // Confirmation Modal
 // -------------------------
 class ConfirmationModal extends obsidian.Modal {
-    constructor(app, message, onConfirm) {
+    constructor(app, message, onConfirm, onCancel) {
         super(app);
         this.message = message;
         this.onConfirm = onConfirm;
+        this.onCancel = onCancel;
     }
     onOpen() {
         const { contentEl } = this;
@@ -379,6 +380,9 @@ class ConfirmationModal extends obsidian.Modal {
         });
         cancelBtn.addEventListener("click", () => {
             this.close();
+            if (this.onCancel) {
+                this.onCancel();
+            }
         });
     }
     onClose() {
@@ -396,53 +400,94 @@ class FolderTagSettingTab extends obsidian.PluginSettingTab {
     }
     displayDirectoryMappings(containerEl) {
         this.plugin.settings.directoryTagMappings.forEach((mapping, index) => {
-            // Store original tags to detect changes
+            // Store original values to detect changes
+            const originalDirectory = mapping.directory;
             const originalTags = [...mapping.tags];
             new obsidian.Setting(containerEl)
                 .setClass("directory-mapping-item")
-                .addText(text => text
-                .setPlaceholder("Directory path (e.g., php-aws-sdk)")
-                .setValue(mapping.directory)
-                .onChange(async (value) => {
-                mapping.directory = value;
-                await this.plugin.saveSettings();
-            }))
-                .addText(text => text
-                .setPlaceholder("Tags (comma-separated, e.g., php, aws)")
-                .setValue(mapping.tags.join(", "))
-                .onChange(async (value) => {
-                const newTags = this.plugin.parseTagsFromString(value);
-                // Check if tags actually changed
-                const tagsChanged = JSON.stringify(originalTags.sort()) !== JSON.stringify(newTags.sort());
-                if (tagsChanged && originalTags.length > 0 && mapping.directory) {
-                    // Ask user if they want to update existing notes
-                    const message = `Update tags in existing notes?\n\nOld tags: [${originalTags.join(", ")}]\nNew tags: [${newTags.join(", ")}]\n\nThis will update all notes in "${mapping.directory}".`;
-                    new ConfirmationModal(this.app, message, async () => {
-                        new obsidian.Notice("Updating tags in notes...");
-                        mapping.tags = newTags;
-                        const updatedCount = await this.plugin.updateTagsForMapping(mapping, originalTags);
+                .addText(text => {
+                text.setPlaceholder("Directory path (e.g., php-aws-sdk)")
+                    .setValue(mapping.directory);
+                // Handle blur event for directory path
+                text.inputEl.addEventListener('blur', async () => {
+                    const newDirectory = text.getValue();
+                    // Check if directory actually changed
+                    if (newDirectory !== originalDirectory && originalDirectory) {
+                        const message = `Change directory path?\n\nOld path: "${originalDirectory}"\nNew path: "${newDirectory}"\n\nThis will remove tags from notes in the old directory and apply them to the new directory.`;
+                        new ConfirmationModal(this.app, message, async () => {
+                            new obsidian.Notice("Updating directory mapping...");
+                            // Remove tags from old directory
+                            const oldMapping = {
+                                directory: originalDirectory,
+                                tags: mapping.tags
+                            };
+                            await this.plugin.removeTagsForMapping(oldMapping);
+                            // Update directory and apply to new directory
+                            mapping.directory = newDirectory;
+                            await this.plugin.saveSettings();
+                            if (newDirectory && mapping.tags.length > 0) {
+                                const appliedCount = await this.plugin.applyTagsForMapping(mapping);
+                                new obsidian.Notice(`Directory updated. Tags applied to ${appliedCount} note(s).`);
+                            }
+                            this.display();
+                        }, () => {
+                            // On cancel, restore original value
+                            text.setValue(originalDirectory);
+                            mapping.directory = originalDirectory;
+                        }).open();
+                    }
+                    else {
+                        mapping.directory = newDirectory;
                         await this.plugin.saveSettings();
-                        new obsidian.Notice(`Tags updated in ${updatedCount} note(s).`);
-                        this.display();
-                    }).open();
-                }
-                else {
-                    mapping.tags = newTags;
-                    await this.plugin.saveSettings();
-                }
-            }))
-                .addButton(btn => btn
-                .setButtonText("Apply")
-                .setTooltip("Apply these tags to existing notes in this directory")
-                .onClick(async () => {
-                if (!mapping.directory || mapping.tags.length === 0) {
-                    new obsidian.Notice("Please set directory path and tags first.");
-                    return;
-                }
-                new obsidian.Notice("Applying tags to existing notes...");
-                const appliedCount = await this.plugin.applyTagsForMapping(mapping);
-                new obsidian.Notice(`Tags applied to ${appliedCount} note(s).`);
-            }))
+                    }
+                });
+            })
+                .addText(text => {
+                text.setPlaceholder("Tags (comma-separated, e.g., php, aws)")
+                    .setValue(mapping.tags.join(", "));
+                // Handle blur event for tags
+                text.inputEl.addEventListener('blur', async () => {
+                    const newTagsString = text.getValue();
+                    const newTags = this.plugin.parseTagsFromString(newTagsString);
+                    // Check if tags actually changed
+                    const tagsChanged = JSON.stringify(originalTags.sort()) !== JSON.stringify(newTags.sort());
+                    if (tagsChanged && originalTags.length > 0 && mapping.directory) {
+                        const message = `Update tags?\n\nOld tags: [${originalTags.join(", ")}]\nNew tags: [${newTags.join(", ")}]\n\nThis will update all notes in "${mapping.directory}".`;
+                        new ConfirmationModal(this.app, message, async () => {
+                            new obsidian.Notice("Updating tags in notes...");
+                            mapping.tags = newTags;
+                            const updatedCount = await this.plugin.updateTagsForMapping(mapping, originalTags);
+                            await this.plugin.saveSettings();
+                            new obsidian.Notice(`Tags updated in ${updatedCount} note(s).`);
+                            this.display();
+                        }, () => {
+                            // On cancel, restore original value
+                            text.setValue(originalTags.join(", "));
+                            mapping.tags = originalTags;
+                        }).open();
+                    }
+                    else if (tagsChanged && originalTags.length === 0 && mapping.directory && newTags.length > 0) {
+                        // First time adding tags - apply to existing notes
+                        const message = `Apply tags to existing notes?\n\nTags: [${newTags.join(", ")}]\n\nThis will add these tags to all notes in "${mapping.directory}".`;
+                        new ConfirmationModal(this.app, message, async () => {
+                            new obsidian.Notice("Applying tags to existing notes...");
+                            mapping.tags = newTags;
+                            await this.plugin.saveSettings();
+                            const appliedCount = await this.plugin.applyTagsForMapping(mapping);
+                            new obsidian.Notice(`Tags applied to ${appliedCount} note(s).`);
+                            this.display();
+                        }, () => {
+                            // On cancel, restore original value
+                            text.setValue(originalTags.join(", "));
+                            mapping.tags = originalTags;
+                        }).open();
+                    }
+                    else {
+                        mapping.tags = newTags;
+                        await this.plugin.saveSettings();
+                    }
+                });
+            })
                 .addButton(btn => btn
                 .setButtonText("Remove")
                 .setWarning()

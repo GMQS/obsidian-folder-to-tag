@@ -405,11 +405,13 @@ export default class FolderTagPlugin extends Plugin {
 class ConfirmationModal extends Modal {
     message: string;
     onConfirm: () => void;
+    onCancel?: () => void;
 
-    constructor(app: App, message: string, onConfirm: () => void) {
+    constructor(app: App, message: string, onConfirm: () => void, onCancel?: () => void) {
         super(app);
         this.message = message;
         this.onConfirm = onConfirm;
+        this.onCancel = onCancel;
     }
 
     onOpen() {
@@ -435,6 +437,9 @@ class ConfirmationModal extends Modal {
         });
         cancelBtn.addEventListener("click", () => {
             this.close();
+            if (this.onCancel) {
+                this.onCancel();
+            }
         });
     }
 
@@ -457,31 +462,69 @@ class FolderTagSettingTab extends PluginSettingTab {
 
     displayDirectoryMappings(containerEl: HTMLElement): void {
         this.plugin.settings.directoryTagMappings.forEach((mapping, index) => {
-            // Store original tags to detect changes
+            // Store original values to detect changes
+            const originalDirectory = mapping.directory;
             const originalTags = [...mapping.tags];
             
             const setting = new Setting(containerEl)
                 .setClass("directory-mapping-item")
-                .addText(text => text
-                    .setPlaceholder("Directory path (e.g., php-aws-sdk)")
-                    .setValue(mapping.directory)
-                    .onChange(async (value) => {
-                        mapping.directory = value;
-                        await this.plugin.saveSettings();
-                    })
-                )
-                .addText(text => text
-                    .setPlaceholder("Tags (comma-separated, e.g., php, aws)")
-                    .setValue(mapping.tags.join(", "))
-                    .onChange(async (value) => {
-                        const newTags = this.plugin.parseTagsFromString(value);
+                .addText(text => {
+                    text.setPlaceholder("Directory path (e.g., php-aws-sdk)")
+                        .setValue(mapping.directory);
+                    
+                    // Handle blur event for directory path
+                    text.inputEl.addEventListener('blur', async () => {
+                        const newDirectory = text.getValue();
+                        
+                        // Check if directory actually changed
+                        if (newDirectory !== originalDirectory && originalDirectory) {
+                            const message = `Change directory path?\n\nOld path: "${originalDirectory}"\nNew path: "${newDirectory}"\n\nThis will remove tags from notes in the old directory and apply them to the new directory.`;
+                            
+                            new ConfirmationModal(this.app, message, async () => {
+                                new Notice("Updating directory mapping...");
+                                
+                                // Remove tags from old directory
+                                const oldMapping = {
+                                    directory: originalDirectory,
+                                    tags: mapping.tags
+                                };
+                                await this.plugin.removeTagsForMapping(oldMapping);
+                                
+                                // Update directory and apply to new directory
+                                mapping.directory = newDirectory;
+                                await this.plugin.saveSettings();
+                                
+                                if (newDirectory && mapping.tags.length > 0) {
+                                    const appliedCount = await this.plugin.applyTagsForMapping(mapping);
+                                    new Notice(`Directory updated. Tags applied to ${appliedCount} note(s).`);
+                                }
+                                
+                                this.display();
+                            }, () => {
+                                // On cancel, restore original value
+                                text.setValue(originalDirectory);
+                                mapping.directory = originalDirectory;
+                            }).open();
+                        } else {
+                            mapping.directory = newDirectory;
+                            await this.plugin.saveSettings();
+                        }
+                    });
+                })
+                .addText(text => {
+                    text.setPlaceholder("Tags (comma-separated, e.g., php, aws)")
+                        .setValue(mapping.tags.join(", "));
+                    
+                    // Handle blur event for tags
+                    text.inputEl.addEventListener('blur', async () => {
+                        const newTagsString = text.getValue();
+                        const newTags = this.plugin.parseTagsFromString(newTagsString);
                         
                         // Check if tags actually changed
                         const tagsChanged = JSON.stringify(originalTags.sort()) !== JSON.stringify(newTags.sort());
                         
                         if (tagsChanged && originalTags.length > 0 && mapping.directory) {
-                            // Ask user if they want to update existing notes
-                            const message = `Update tags in existing notes?\n\nOld tags: [${originalTags.join(", ")}]\nNew tags: [${newTags.join(", ")}]\n\nThis will update all notes in "${mapping.directory}".`;
+                            const message = `Update tags?\n\nOld tags: [${originalTags.join(", ")}]\nNew tags: [${newTags.join(", ")}]\n\nThis will update all notes in "${mapping.directory}".`;
                             
                             new ConfirmationModal(this.app, message, async () => {
                                 new Notice("Updating tags in notes...");
@@ -490,27 +533,33 @@ class FolderTagSettingTab extends PluginSettingTab {
                                 await this.plugin.saveSettings();
                                 new Notice(`Tags updated in ${updatedCount} note(s).`);
                                 this.display();
+                            }, () => {
+                                // On cancel, restore original value
+                                text.setValue(originalTags.join(", "));
+                                mapping.tags = originalTags;
+                            }).open();
+                        } else if (tagsChanged && originalTags.length === 0 && mapping.directory && newTags.length > 0) {
+                            // First time adding tags - apply to existing notes
+                            const message = `Apply tags to existing notes?\n\nTags: [${newTags.join(", ")}]\n\nThis will add these tags to all notes in "${mapping.directory}".`;
+                            
+                            new ConfirmationModal(this.app, message, async () => {
+                                new Notice("Applying tags to existing notes...");
+                                mapping.tags = newTags;
+                                await this.plugin.saveSettings();
+                                const appliedCount = await this.plugin.applyTagsForMapping(mapping);
+                                new Notice(`Tags applied to ${appliedCount} note(s).`);
+                                this.display();
+                            }, () => {
+                                // On cancel, restore original value
+                                text.setValue(originalTags.join(", "));
+                                mapping.tags = originalTags;
                             }).open();
                         } else {
                             mapping.tags = newTags;
                             await this.plugin.saveSettings();
                         }
-                    })
-                )
-                .addButton(btn => btn
-                    .setButtonText("Apply")
-                    .setTooltip("Apply these tags to existing notes in this directory")
-                    .onClick(async () => {
-                        if (!mapping.directory || mapping.tags.length === 0) {
-                            new Notice("Please set directory path and tags first.");
-                            return;
-                        }
-                        
-                        new Notice("Applying tags to existing notes...");
-                        const appliedCount = await this.plugin.applyTagsForMapping(mapping);
-                        new Notice(`Tags applied to ${appliedCount} note(s).`);
-                    })
-                )
+                    });
+                })
                 .addButton(btn => btn
                     .setButtonText("Remove")
                     .setWarning()
