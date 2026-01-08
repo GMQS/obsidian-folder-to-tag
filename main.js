@@ -187,6 +187,79 @@ class FolderTagPlugin extends obsidian.Plugin {
                 yaml.tags = existingTags;
         });
     }
+    // -------------------------
+    // Remove tags for a specific directory mapping
+    // -------------------------
+    async removeTagsForMapping(mapping) {
+        const files = this.app.vault.getMarkdownFiles();
+        let removedCount = 0;
+        for (const file of files) {
+            const normalized = obsidian.normalizePath(file.path);
+            const dirPath = normalized.split("/").slice(0, -1).join("/");
+            const normalizedDir = obsidian.normalizePath(mapping.directory);
+            // Check if file is in this directory
+            if (dirPath === normalizedDir || dirPath.startsWith(normalizedDir + "/")) {
+                await this.app.fileManager.processFrontMatter(file, yaml => {
+                    if (!yaml || typeof yaml !== "object")
+                        return;
+                    let existingTags = [];
+                    if ("tags" in yaml) {
+                        const val = yaml.tags;
+                        if (Array.isArray(val))
+                            existingTags.push(...val.map(v => String(v).trim()));
+                        else if (typeof val === "string")
+                            existingTags.push(...val.split(",").map(v => v.trim()));
+                    }
+                    const originalLength = existingTags.length;
+                    // Remove only the tags from this mapping
+                    existingTags = existingTags.filter(t => !mapping.tags.includes(t));
+                    if (existingTags.length < originalLength) {
+                        removedCount++;
+                    }
+                    if (existingTags.length === 0)
+                        delete yaml.tags;
+                    else
+                        yaml.tags = existingTags;
+                });
+            }
+        }
+        return removedCount;
+    }
+}
+// -------------------------
+// Confirmation Modal
+// -------------------------
+class ConfirmationModal extends obsidian.Modal {
+    constructor(app, message, onConfirm) {
+        super(app);
+        this.message = message;
+        this.onConfirm = onConfirm;
+    }
+    onOpen() {
+        const { contentEl } = this;
+        contentEl.empty();
+        contentEl.createEl("h2", { text: "Confirm action" });
+        contentEl.createEl("p", { text: this.message });
+        const buttonContainer = contentEl.createDiv({ cls: "modal-button-container" });
+        const confirmBtn = buttonContainer.createEl("button", {
+            text: "Confirm",
+            cls: "mod-cta"
+        });
+        confirmBtn.addEventListener("click", () => {
+            this.close();
+            this.onConfirm();
+        });
+        const cancelBtn = buttonContainer.createEl("button", {
+            text: "Cancel"
+        });
+        cancelBtn.addEventListener("click", () => {
+            this.close();
+        });
+    }
+    onClose() {
+        const { contentEl } = this;
+        contentEl.empty();
+    }
 }
 // -------------------------
 // Settings Tab
@@ -218,9 +291,18 @@ class FolderTagSettingTab extends obsidian.PluginSettingTab {
                 .setButtonText("Remove")
                 .setWarning()
                 .onClick(async () => {
-                this.plugin.settings.directoryTagMappings.splice(index, 1);
-                await this.plugin.saveSettings();
-                this.display();
+                const mappingToRemove = mapping;
+                const message = `Remove directory mapping "${mappingToRemove.directory}" → [${mappingToRemove.tags.join(", ")}]?\n\nThis will also remove these tags from all notes in this directory.`;
+                new ConfirmationModal(this.app, message, async () => {
+                    new obsidian.Notice("Removing tags from notes...");
+                    // Remove tags from notes first
+                    const removedCount = await this.plugin.removeTagsForMapping(mappingToRemove);
+                    // Then remove the mapping from settings
+                    this.plugin.settings.directoryTagMappings.splice(index, 1);
+                    await this.plugin.saveSettings();
+                    new obsidian.Notice(`Mapping removed. Tags removed from ${removedCount} note(s).`);
+                    this.display();
+                }).open();
             }));
         });
     }
