@@ -6,16 +6,10 @@ interface DirectoryTagMapping {
 }
 
 interface FolderTagPluginSettings {
-    folderDepth: "1" | "2split" | "2single" | "full" | "allsplit";
-    tagPrefix: string;
-    tagSuffix: string;
     directoryTagMappings: DirectoryTagMapping[];
 }
 
 const DEFAULT_SETTINGS: FolderTagPluginSettings = {
-    folderDepth: "1",
-    tagPrefix: "",
-    tagSuffix: "",
     directoryTagMappings: []
 };
 
@@ -60,40 +54,8 @@ export default class FolderTagPlugin extends Plugin {
         const parts = normalized.split("/").slice(0, -1);
         if (!parts.length) return [];
 
-        const { folderDepth, tagPrefix, tagSuffix } = this.settings;
-        let tags: string[] = [];
-
-        switch (folderDepth) {
-            case "1":
-                tags.push(tagPrefix + parts[parts.length - 1] + tagSuffix);
-                break;
-            case "2split":
-                if (parts.length >= 2) {
-                    tags.push(tagPrefix + parts[parts.length - 1] + tagSuffix);
-                    tags.push(tagPrefix + parts[parts.length - 2] + tagSuffix);
-                } else {
-                    tags.push(tagPrefix + parts[parts.length - 1] + tagSuffix);
-                }
-                break;
-            case "2single":
-                if (parts.length >= 2) {
-                    tags.push(tagPrefix + parts[parts.length - 2] + "/" + parts[parts.length - 1] + tagSuffix);
-                } else {
-                    tags.push(tagPrefix + parts[parts.length - 1] + tagSuffix);
-                }
-                break;
-            case "full":
-                tags.push(tagPrefix + parts.join("/") + tagSuffix);
-                break;
-            case "allsplit":
-                // Add each directory in the path as a separate tag
-                parts.forEach(part => {
-                    tags.push(tagPrefix + part + tagSuffix);
-                });
-                break;
-        }
-
-        return tags;
+        // Add each directory in the path as a separate tag
+        return parts.map(part => part);
     }
 
     parseTagsFromString(tagsString: string): string[] {
@@ -201,55 +163,6 @@ export default class FolderTagPlugin extends Plugin {
         });
     }
 
-
-    // -------------------------
-    // Remove folder tags
-    // -------------------------
-    async removeFolderTags(file: TFile) {
-        const folderTags = this.getAllTags(file.path);
-        if (!folderTags.length) return;
-
-        await this.app.fileManager.processFrontMatter(file, yaml => {
-            if (!yaml || typeof yaml !== "object") return;
-
-            let existingTags: string[] = [];
-            if ("tags" in yaml) {
-                const val = yaml.tags;
-                if (Array.isArray(val)) existingTags.push(...val.map(v => String(v).trim()));
-                else if (typeof val === "string") existingTags.push(...val.split(",").map(v => v.trim()));
-            }
-
-            existingTags = existingTags.filter(t => !folderTags.includes(t));
-
-            if (existingTags.length === 0) delete yaml.tags;
-            else yaml.tags = existingTags;
-        });
-    }
-
-    // -------------------------
-    // Remove only custom directory tags (safe removal)
-    // -------------------------
-    async removeCustomDirectoryTags(file: TFile) {
-        const customTags = this.getCustomDirectoryTags(file.path);
-        if (!customTags.length) return;
-
-        await this.app.fileManager.processFrontMatter(file, yaml => {
-            if (!yaml || typeof yaml !== "object") return;
-
-            let existingTags: string[] = [];
-            if ("tags" in yaml) {
-                const val = yaml.tags;
-                if (Array.isArray(val)) existingTags.push(...val.map(v => String(v).trim()));
-                else if (typeof val === "string") existingTags.push(...val.split(",").map(v => v.trim()));
-            }
-
-            // Only remove custom directory tags, preserve folder-based tags
-            existingTags = existingTags.filter(t => !customTags.includes(t));
-
-            if (existingTags.length === 0) delete yaml.tags;
-            else yaml.tags = existingTags;
-        });
-    }
 
     // -------------------------
     // Remove tags for a specific directory mapping
@@ -396,6 +309,68 @@ export default class FolderTagPlugin extends Plugin {
         }
 
         return updatedCount;
+    }
+
+    // -------------------------
+    // Clean and reapply all tags (recheck all settings and apply cleanly)
+    // -------------------------
+    async cleanAndReapplyAllTags() {
+        const files = this.app.vault.getMarkdownFiles();
+        let processedCount = 0;
+
+        for (const file of files) {
+            try {
+                // Remove current folder tags and reapply them
+                await this.applyFolderTag(file, "rerun");
+                processedCount++;
+            } catch (e) {
+                console.error("Failed to process file:", file.path, e);
+            }
+        }
+
+        return processedCount;
+    }
+
+    // -------------------------
+    // Complete reset: remove all plugin-generated tags and clear custom mappings
+    // -------------------------
+    async completeReset() {
+        const files = this.app.vault.getMarkdownFiles();
+        let processedCount = 0;
+
+        for (const file of files) {
+            try {
+                const allTags = this.getAllTags(file.path);
+                if (!allTags.length) continue;
+
+                await this.app.fileManager.processFrontMatter(file, yaml => {
+                    if (!yaml || typeof yaml !== "object") return;
+
+                    let existingTags: string[] = [];
+                    if ("tags" in yaml) {
+                        const val = yaml.tags;
+                        if (Array.isArray(val)) existingTags.push(...val.map(v => String(v).trim()));
+                        else if (typeof val === "string") existingTags.push(...val.split(",").map(v => v.trim()));
+                    }
+
+                    // Remove all plugin-generated tags
+                    existingTags = existingTags.filter(t => !allTags.includes(t));
+
+                    if (existingTags.length === 0) delete yaml.tags;
+                    else yaml.tags = existingTags;
+                });
+                
+                processedCount++;
+            } catch (e) {
+                console.error("Failed to process file:", file.path, e);
+            }
+        }
+
+        // Clear all custom directory mappings
+        this.settings.directoryTagMappings = [];
+        await this.saveSettings();
+
+        return processedCount;
     }
 }
 
@@ -582,41 +557,6 @@ class FolderTagSettingTab extends PluginSettingTab {
         containerEl.empty();
         new Setting(containerEl).setHeading().setName("Folder to tag");
 
-        new Setting(containerEl)
-            .setName("Folder depth")
-            .addDropdown(drop => {
-                drop.addOption("1", "Depth 1")
-                    .addOption("2split", "Depth 2 (separate tags)")
-                    .addOption("2single", "Depth 2 in one tag")
-                    .addOption("full", "Full path")
-                    .addOption("allsplit", "All directories (separate tags)")
-                    .setValue(this.plugin.settings.folderDepth)
-                    .onChange(async value => {
-                        this.plugin.settings.folderDepth = value as FolderTagPluginSettings["folderDepth"];
-                        await this.plugin.saveSettings();
-                    });
-            });
-
-        new Setting(containerEl)
-            .setName("Tag prefix")
-            .addText(txt => txt
-                .setValue(this.plugin.settings.tagPrefix)
-                .onChange(async value => {
-                    this.plugin.settings.tagPrefix = value;
-                    await this.plugin.saveSettings();
-                })
-            );
-
-        new Setting(containerEl)
-            .setName("Tag suffix")
-            .addText(txt => txt
-                .setValue(this.plugin.settings.tagSuffix)
-                .onChange(async value => {
-                    this.plugin.settings.tagSuffix = value;
-                    await this.plugin.saveSettings();
-                })
-            );
-
         // Custom Directory Tags Section
         new Setting(containerEl).setHeading().setName("Custom directory tags");
         
@@ -639,55 +579,37 @@ class FolderTagSettingTab extends PluginSettingTab {
                 })
             );
 
+        // New operations section
+        new Setting(containerEl).setHeading().setName("Operations");
+
         new Setting(containerEl)
-            .setName("Remove custom directory tags from all notes")
-            .setDesc("Safely removes only custom directory tags, preserving folder-based tags")
+            .setName("Clean and reapply all tags")
+            .setDesc("Rechecks all settings and directory structure, then cleanly reapplies all tags to all notes")
             .addButton(btn => btn
-                .setButtonText("Remove custom tags")
+                .setButtonText("Clean & Reapply")
+                .setCta()
+                .onClick(async () => {
+                    new Notice("Cleaning and reapplying all tags...");
+                    const processedCount = await this.plugin.cleanAndReapplyAllTags();
+                    new Notice(`Tags cleaned and reapplied to ${processedCount} note(s)!`);
+                })
+            );
+
+        new Setting(containerEl)
+            .setName("Complete reset")
+            .setDesc("Removes all plugin-generated tags from all notes and clears all custom directory mappings. This action cannot be undone.")
+            .addButton(btn => btn
+                .setButtonText("Complete Reset")
                 .setWarning()
                 .onClick(async () => {
-                    new Notice("Removing custom directory tags from all notes...");
-                    const files = this.plugin.app.vault.getMarkdownFiles();
-                    for (const file of files) {
-                        await this.plugin.removeCustomDirectoryTags(file);
-                    }
-                    new Notice("Custom directory tags removed!");
-                })
-            );
-
-        new Setting(containerEl)
-            .setName("Reapply tags to all notes")
-            .addButton(btn => btn
-                .setButtonText("Reapply to all notes")
-                .setCta()
-                .onClick(async () => {
-                    new Notice("Updating all notes...");
-                    const files = this.plugin.app.vault.getMarkdownFiles();
-                    for (const file of files) {
-                        try {
-                            await this.plugin.applyFolderTag(file, "rerun");
-                        } catch (e) {
-                            console.error("Failed for file:", file.path, e);
-                            new Notice(`Failed to process: ${file.path}`);
-                        }
-                    }
-                    new Notice("Folder tags updated for all notes!");
-                })
-            );
-
-
-        new Setting(containerEl)
-            .setName("Remove all folder tags")
-            .addButton(btn => btn
-                .setButtonText("Remove folder tags")
-                .setCta()
-                .onClick(async () => {
-                    new Notice("Removing folder tags from all notes...");
-                    const files = this.plugin.app.vault.getMarkdownFiles();
-                    for (const file of files) {
-                        await this.plugin.removeFolderTags(file);
-                    }
-                    new Notice("All folder tags removed!");
+                    const message = "This will remove all plugin-generated tags from all notes and clear all custom directory mappings. This action cannot be undone.\n\nAre you sure you want to proceed?";
+                    
+                    new ConfirmationModal(this.app, message, async () => {
+                        new Notice("Performing complete reset...");
+                        const processedCount = await this.plugin.completeReset();
+                        new Notice(`Reset complete! Tags removed from ${processedCount} note(s) and all custom mappings cleared.`);
+                        this.display();
+                    }).open();
                 })
             );
     }
