@@ -92,6 +92,10 @@ export default class FolderTagPlugin extends Plugin {
         return tags;
     }
 
+    parseTagsFromString(tagsString: string): string[] {
+        return tagsString.split(",").map(t => t.trim()).filter(t => t.length > 0);
+    }
+
     private getCustomDirectoryTags(path: string): string[] {
         const normalized = normalizePath(path);
         const customTags: string[] = [];
@@ -102,6 +106,9 @@ export default class FolderTagPlugin extends Plugin {
         // Check each directory in the path against custom mappings
         for (const mapping of this.settings.directoryTagMappings) {
             const normalizedDir = normalizePath(mapping.directory);
+            
+            // Skip empty directory mappings
+            if (!normalizedDir) continue;
             
             // Check if the file is within this directory
             // Either the dir path equals the mapping directory, or it's a subdirectory
@@ -210,7 +217,7 @@ class FolderTagSettingTab extends PluginSettingTab {
                     .setPlaceholder("Tags (comma-separated, e.g., php, aws)")
                     .setValue(mapping.tags.join(", "))
                     .onChange(async (value) => {
-                        mapping.tags = value.split(",").map(t => t.trim()).filter(t => t.length > 0);
+                        mapping.tags = this.plugin.parseTagsFromString(value);
                         await this.plugin.saveSettings();
                     })
                 )

@@ -72,6 +72,9 @@ class FolderTagPlugin extends obsidian.Plugin {
         }
         return tags;
     }
+    parseTagsFromString(tagsString) {
+        return tagsString.split(",").map(t => t.trim()).filter(t => t.length > 0);
+    }
     getCustomDirectoryTags(path) {
         const normalized = obsidian.normalizePath(path);
         const customTags = [];
@@ -80,6 +83,9 @@ class FolderTagPlugin extends obsidian.Plugin {
         // Check each directory in the path against custom mappings
         for (const mapping of this.settings.directoryTagMappings) {
             const normalizedDir = obsidian.normalizePath(mapping.directory);
+            // Skip empty directory mappings
+            if (!normalizedDir)
+                continue;
             // Check if the file is within this directory
             // Either the dir path equals the mapping directory, or it's a subdirectory
             if (dirPath === normalizedDir || dirPath.startsWith(normalizedDir + "/")) {
@@ -179,7 +185,7 @@ class FolderTagSettingTab extends obsidian.PluginSettingTab {
                 .setPlaceholder("Tags (comma-separated, e.g., php, aws)")
                 .setValue(mapping.tags.join(", "))
                 .onChange(async (value) => {
-                mapping.tags = value.split(",").map(t => t.trim()).filter(t => t.length > 0);
+                mapping.tags = this.plugin.parseTagsFromString(value);
                 await this.plugin.saveSettings();
             }))
                 .addButton(btn => btn
