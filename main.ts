@@ -188,6 +188,31 @@ export default class FolderTagPlugin extends Plugin {
             else yaml.tags = existingTags;
         });
     }
+
+    // -------------------------
+    // Remove only custom directory tags (safe removal)
+    // -------------------------
+    async removeCustomDirectoryTags(file: TFile) {
+        const customTags = this.getCustomDirectoryTags(file.path);
+        if (!customTags.length) return;
+
+        await this.app.fileManager.processFrontMatter(file, yaml => {
+            if (!yaml || typeof yaml !== "object") return;
+
+            let existingTags: string[] = [];
+            if ("tags" in yaml) {
+                const val = yaml.tags;
+                if (Array.isArray(val)) existingTags.push(...val.map(v => String(v).trim()));
+                else if (typeof val === "string") existingTags.push(...val.split(",").map(v => v.trim()));
+            }
+
+            // Only remove custom directory tags, preserve folder-based tags
+            existingTags = existingTags.filter(t => !customTags.includes(t));
+
+            if (existingTags.length === 0) delete yaml.tags;
+            else yaml.tags = existingTags;
+        });
+    }
 }
 
 // -------------------------
@@ -292,6 +317,22 @@ class FolderTagSettingTab extends PluginSettingTab {
                     });
                     await this.plugin.saveSettings();
                     this.display();
+                })
+            );
+
+        new Setting(containerEl)
+            .setName("Remove custom directory tags from all notes")
+            .setDesc("Safely removes only custom directory tags, preserving folder-based tags")
+            .addButton(btn => btn
+                .setButtonText("Remove custom tags")
+                .setWarning()
+                .onClick(async () => {
+                    new Notice("Removing custom directory tags from all notes...");
+                    const files = this.plugin.app.vault.getMarkdownFiles();
+                    for (const file of files) {
+                        await this.plugin.removeCustomDirectoryTags(file);
+                    }
+                    new Notice("Custom directory tags removed!");
                 })
             );
 
