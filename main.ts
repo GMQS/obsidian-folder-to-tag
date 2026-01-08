@@ -16,12 +16,25 @@ const DEFAULT_SETTINGS: FolderTagPluginSettings = {
 export default class FolderTagPlugin extends Plugin {
     settings!: FolderTagPluginSettings;
 
+    // -------------------------
+    // Check and handle new subdirectory creation
+    // -------------------------
+    private async checkAndHandleNewSubdirectory(filePath: string) {
+        const dirPath = normalizePath(filePath).split("/").slice(0, -1).join("/");
+        if (dirPath) {
+            await this.handleNewSubdirectory(dirPath);
+        }
+    }
+
     async onload() {
         await this.loadSettings();
         this.addSettingTab(new FolderTagSettingTab(this.app, this));
 
         this.registerEvent(this.app.vault.on("create", async (file) => {
             if (file instanceof TFile && file.extension === "md") {
+                // Check for new subdirectory creation
+                await this.checkAndHandleNewSubdirectory(file.path);
+                
                 await this.applyFolderTag(file, "create");
             }
         }));
@@ -30,6 +43,9 @@ export default class FolderTagPlugin extends Plugin {
             if (file instanceof TFile && file.extension === "md") {
                 // Handle directory rename in settings
                 await this.handleDirectoryRename(oldPath, file.path);
+                
+                // Check for new subdirectory creation
+                await this.checkAndHandleNewSubdirectory(file.path);
                 
                 // Apply folder tags for the moved file
                 await this.applyFolderTag(file, "move", oldPath);
@@ -79,11 +95,11 @@ export default class FolderTagPlugin extends Plugin {
         for (const mapping of this.settings.directoryTagMappings) {
             const normalizedMapping = normalizePath(mapping.directory);
             
-            // Check if the mapping matches the old directory or is a subdirectory of it
-            if (normalizedMapping === oldDir || normalizedMapping.startsWith(oldDir + "/")) {
+            // Requirement 1: Only update mappings that exactly match the renamed directory
+            // Do not automatically update subdirectory mappings
+            if (normalizedMapping === oldDir) {
                 // Replace the old directory path with the new one
-                const relativePath = normalizedMapping.substring(oldDir.length);
-                mapping.directory = newDir + relativePath;
+                mapping.directory = newDir;
                 updated = true;
             }
         }
@@ -92,6 +108,76 @@ export default class FolderTagPlugin extends Plugin {
         if (updated) {
             await this.saveSettings();
             new Notice("Directory mappings updated for renamed folder");
+        }
+    }
+
+    // -------------------------
+    // Find parent directory mapping for a given path
+    // -------------------------
+    private findParentDirectoryMapping(dirPath: string): DirectoryTagMapping | null {
+        const normalized = normalizePath(dirPath);
+        let closestParent: DirectoryTagMapping | null = null;
+        let closestParentDepth = -1;
+        
+        // Check each mapping to see if it's a parent of this directory
+        for (const mapping of this.settings.directoryTagMappings) {
+            const normalizedMapping = normalizePath(mapping.directory);
+            
+            // Skip empty mappings or if this is the same directory
+            if (!normalizedMapping || normalizedMapping === normalized) continue;
+            
+            // Check if the mapping is a parent directory
+            if (normalized.startsWith(normalizedMapping + "/")) {
+                // Find the closest parent (deepest in the hierarchy)
+                const depth = normalizedMapping.split("/").length;
+                if (depth > closestParentDepth) {
+                    closestParent = mapping;
+                    closestParentDepth = depth;
+                }
+            }
+        }
+        
+        return closestParent;
+    }
+
+    // -------------------------
+    // Check if a directory already has a mapping
+    // -------------------------
+    private hasDirectoryMapping(dirPath: string): boolean {
+        const normalized = normalizePath(dirPath);
+        return this.settings.directoryTagMappings.some(
+            mapping => normalizePath(mapping.directory) === normalized
+        );
+    }
+
+    // -------------------------
+    // Handle new subdirectory creation (Requirement 2)
+    // -------------------------
+    private async handleNewSubdirectory(dirPath: string) {
+        const normalized = normalizePath(dirPath);
+        
+        // Skip if this directory already has a mapping
+        // This prevents overwriting user-customized mappings and avoids duplicate processing
+        if (this.hasDirectoryMapping(normalized)) {
+            return;
+        }
+        
+        // Find parent mapping
+        const parentMapping = this.findParentDirectoryMapping(normalized);
+        
+        // If there's a parent mapping, inherit its tags
+        if (parentMapping && parentMapping.tags.length > 0) {
+            const newMapping: DirectoryTagMapping = {
+                directory: normalized,
+                tags: [...parentMapping.tags]  // Inherit tags from parent
+            };
+            
+            this.settings.directoryTagMappings.push(newMapping);
+            await this.saveSettings();
+            
+            // Apply tags to any existing files in this directory
+            const appliedCount = await this.applyTagsForMapping(newMapping);
+            new Notice(`New subdirectory detected: ${normalized}. Inherited tags from parent. Applied to ${appliedCount} note(s).`);
         }
     }
 

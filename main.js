@@ -6,11 +6,22 @@ const DEFAULT_SETTINGS = {
     directoryTagMappings: []
 };
 class FolderTagPlugin extends obsidian.Plugin {
+    // -------------------------
+    // Check and handle new subdirectory creation
+    // -------------------------
+    async checkAndHandleNewSubdirectory(filePath) {
+        const dirPath = obsidian.normalizePath(filePath).split("/").slice(0, -1).join("/");
+        if (dirPath) {
+            await this.handleNewSubdirectory(dirPath);
+        }
+    }
     async onload() {
         await this.loadSettings();
         this.addSettingTab(new FolderTagSettingTab(this.app, this));
         this.registerEvent(this.app.vault.on("create", async (file) => {
             if (file instanceof obsidian.TFile && file.extension === "md") {
+                // Check for new subdirectory creation
+                await this.checkAndHandleNewSubdirectory(file.path);
                 await this.applyFolderTag(file, "create");
             }
         }));
@@ -18,6 +29,8 @@ class FolderTagPlugin extends obsidian.Plugin {
             if (file instanceof obsidian.TFile && file.extension === "md") {
                 // Handle directory rename in settings
                 await this.handleDirectoryRename(oldPath, file.path);
+                // Check for new subdirectory creation
+                await this.checkAndHandleNewSubdirectory(file.path);
                 // Apply folder tags for the moved file
                 await this.applyFolderTag(file, "move", oldPath);
             }
@@ -57,11 +70,11 @@ class FolderTagPlugin extends obsidian.Plugin {
         // Update any matching directory mappings
         for (const mapping of this.settings.directoryTagMappings) {
             const normalizedMapping = obsidian.normalizePath(mapping.directory);
-            // Check if the mapping matches the old directory or is a subdirectory of it
-            if (normalizedMapping === oldDir || normalizedMapping.startsWith(oldDir + "/")) {
+            // Requirement 1: Only update mappings that exactly match the renamed directory
+            // Do not automatically update subdirectory mappings
+            if (normalizedMapping === oldDir) {
                 // Replace the old directory path with the new one
-                const relativePath = normalizedMapping.substring(oldDir.length);
-                mapping.directory = newDir + relativePath;
+                mapping.directory = newDir;
                 updated = true;
             }
         }
@@ -69,6 +82,63 @@ class FolderTagPlugin extends obsidian.Plugin {
         if (updated) {
             await this.saveSettings();
             new obsidian.Notice("Directory mappings updated for renamed folder");
+        }
+    }
+    // -------------------------
+    // Find parent directory mapping for a given path
+    // -------------------------
+    findParentDirectoryMapping(dirPath) {
+        const normalized = obsidian.normalizePath(dirPath);
+        let closestParent = null;
+        let closestParentDepth = -1;
+        // Check each mapping to see if it's a parent of this directory
+        for (const mapping of this.settings.directoryTagMappings) {
+            const normalizedMapping = obsidian.normalizePath(mapping.directory);
+            // Skip empty mappings or if this is the same directory
+            if (!normalizedMapping || normalizedMapping === normalized)
+                continue;
+            // Check if the mapping is a parent directory
+            if (normalized.startsWith(normalizedMapping + "/")) {
+                // Find the closest parent (deepest in the hierarchy)
+                const depth = normalizedMapping.split("/").length;
+                if (depth > closestParentDepth) {
+                    closestParent = mapping;
+                    closestParentDepth = depth;
+                }
+            }
+        }
+        return closestParent;
+    }
+    // -------------------------
+    // Check if a directory already has a mapping
+    // -------------------------
+    hasDirectoryMapping(dirPath) {
+        const normalized = obsidian.normalizePath(dirPath);
+        return this.settings.directoryTagMappings.some(mapping => obsidian.normalizePath(mapping.directory) === normalized);
+    }
+    // -------------------------
+    // Handle new subdirectory creation (Requirement 2)
+    // -------------------------
+    async handleNewSubdirectory(dirPath) {
+        const normalized = obsidian.normalizePath(dirPath);
+        // Skip if this directory already has a mapping
+        // This prevents overwriting user-customized mappings and avoids duplicate processing
+        if (this.hasDirectoryMapping(normalized)) {
+            return;
+        }
+        // Find parent mapping
+        const parentMapping = this.findParentDirectoryMapping(normalized);
+        // If there's a parent mapping, inherit its tags
+        if (parentMapping && parentMapping.tags.length > 0) {
+            const newMapping = {
+                directory: normalized,
+                tags: [...parentMapping.tags] // Inherit tags from parent
+            };
+            this.settings.directoryTagMappings.push(newMapping);
+            await this.saveSettings();
+            // Apply tags to any existing files in this directory
+            const appliedCount = await this.applyTagsForMapping(newMapping);
+            new obsidian.Notice(`New subdirectory detected: ${normalized}. Inherited tags from parent. Applied to ${appliedCount} note(s).`);
         }
     }
     getCustomDirectoryTags(path) {
