@@ -54,16 +54,6 @@ class FolderTagPlugin extends obsidian.Plugin {
         // Input path: "main-folder/sub-folder/note.md" → Output tag: ["main-folder/sub-folder"]
         return [parts.join("/")];
     }
-    // Helper function to get old-style tags (separate tags for each directory)
-    // Used for cleanup operations to ensure backward compatibility
-    getOldStyleFolderTagsFromPath(path) {
-        const normalized = obsidian.normalizePath(path);
-        const parts = normalized.split("/").slice(0, -1);
-        if (!parts.length)
-            return [];
-        // Return each directory in the path as a separate tag (old algorithm)
-        return parts.map(part => part);
-    }
     parseTagsFromString(tagsString) {
         return tagsString.split(",").map(t => t.trim()).filter(t => t.length > 0);
     }
@@ -199,16 +189,13 @@ class FolderTagPlugin extends obsidian.Plugin {
             if (action === "move" && oldPath) {
                 // For move: remove tags based on the old file path
                 const oldTags = this.getAllTags(oldPath);
-                const oldStyleTags = this.getOldStyleFolderTagsFromPath(oldPath);
-                const allOldTags = [...oldTags, ...oldStyleTags];
-                existingTags = existingTags.filter(t => !allOldTags.includes(t));
+                existingTags = existingTags.filter(t => !oldTags.includes(t));
             }
             else if (action === "rerun") {
-                // For rerun: remove both old-style and new-style tags to ensure clean migration
+                // For rerun: remove tags based on current path (to handle setting changes)
+                // This ensures tags are refreshed when depth setting changes
                 const currentTags = this.getAllTags(file.path);
-                const oldStyleTags = this.getOldStyleFolderTagsFromPath(file.path);
-                const allTagsToRemove = [...currentTags, ...oldStyleTags];
-                existingTags = existingTags.filter(t => !allTagsToRemove.includes(t));
+                existingTags = existingTags.filter(t => !currentTags.includes(t));
             }
             // Add new folder tags
             folderTags.forEach(t => { if (!existingTags.includes(t))
@@ -375,9 +362,7 @@ class FolderTagPlugin extends obsidian.Plugin {
         for (const file of files) {
             try {
                 const allTags = this.getAllTags(file.path);
-                const oldStyleTags = this.getOldStyleFolderTagsFromPath(file.path);
-                const allTagsToRemove = [...allTags, ...oldStyleTags];
-                if (!allTagsToRemove.length)
+                if (!allTags.length)
                     continue;
                 await this.app.fileManager.processFrontMatter(file, yaml => {
                     if (!yaml || typeof yaml !== "object")
@@ -390,8 +375,8 @@ class FolderTagPlugin extends obsidian.Plugin {
                         else if (typeof val === "string")
                             existingTags.push(...val.split(",").map(v => v.trim()));
                     }
-                    // Remove all plugin-generated tags (both old-style and new-style)
-                    existingTags = existingTags.filter(t => !allTagsToRemove.includes(t));
+                    // Remove all plugin-generated tags
+                    existingTags = existingTags.filter(t => !allTags.includes(t));
                     if (existingTags.length === 0)
                         delete yaml.tags;
                     else
