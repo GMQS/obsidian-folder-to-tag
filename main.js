@@ -50,8 +50,9 @@ class FolderTagPlugin extends obsidian.Plugin {
         const parts = normalized.split("/").slice(0, -1);
         if (!parts.length)
             return [];
-        // Add each directory in the path as a separate tag
-        return parts.map(part => part);
+        // Generate hierarchical tag using full path from project root
+        // E.g., "main-folder/sub-folder/note.md" → ["main-folder/sub-folder"]
+        return [parts.join("/")];
     }
     parseTagsFromString(tagsString) {
         return tagsString.split(",").map(t => t.trim()).filter(t => t.length > 0);

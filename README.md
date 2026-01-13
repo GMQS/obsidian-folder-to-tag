@@ -7,7 +7,7 @@ Ideal for users who organize notes by folder but want to leverage tags for easie
 
 ## Features
 
-* Automatically adds tags that match **all folders** in the path of each note in frontmatter (each directory becomes a separate tag).
+* Automatically adds a hierarchical tag that represents the full folder path of each note in frontmatter (directory hierarchy is connected with slashes).
 * **Custom directory tags**: Assign specific tags to any directory (e.g., `php-aws-sdk` directory gets both `php` and `aws` tags).
 * Updates tags when notes are **moved or renamed**.
 * Preserves all other frontmatter fields (aliases, dates, custom properties, etc.).
@@ -19,14 +19,14 @@ Ideal for users who organize notes by folder but want to leverage tags for easie
 
 ## Tag Behavior
 
-All directories in the path are added as separate tags:
+The full directory path is added as a single hierarchical tag:
 
 | Note path                                          | Generated tags                                      |
 | -------------------------------------------------- | --------------------------------------------------- |
 | `note.md`                                          | (no tags - note is in root)                         |
 | `folder/note.md`                                   | `#folder`                                           |
-| `main-folder/sub-folder/note.md`                   | `#main-folder`, `#sub-folder`                       |
-| `main-folder/sub-folder/last-folder/note.md`       | `#main-folder`, `#sub-folder`, `#last-folder`       |
+| `main-folder/sub-folder/note.md`                   | `#main-folder/sub-folder`                           |
+| `main-folder/sub-folder/last-folder/note.md`       | `#main-folder/sub-folder/last-folder`               |
 
 ---
 
