@@ -75,6 +75,17 @@ export default class FolderTagPlugin extends Plugin {
         return [parts.join("/")];
     }
 
+    // Helper function to get old-style tags (separate tags for each directory)
+    // Used for cleanup operations to ensure backward compatibility
+    private getOldStyleFolderTagsFromPath(path: string): string[] {
+        const normalized = normalizePath(path);
+        const parts = normalized.split("/").slice(0, -1);
+        if (!parts.length) return [];
+
+        // Return each directory in the path as a separate tag (old algorithm)
+        return parts.map(part => part);
+    }
+
     parseTagsFromString(tagsString: string): string[] {
         return tagsString.split(",").map(t => t.trim()).filter(t => t.length > 0);
     }
@@ -235,12 +246,15 @@ export default class FolderTagPlugin extends Plugin {
             if (action === "move" && oldPath) {
                 // For move: remove tags based on the old file path
                 const oldTags = this.getAllTags(oldPath);
-                existingTags = existingTags.filter(t => !oldTags.includes(t));
+                const oldStyleTags = this.getOldStyleFolderTagsFromPath(oldPath);
+                const allOldTags = [...oldTags, ...oldStyleTags];
+                existingTags = existingTags.filter(t => !allOldTags.includes(t));
             } else if (action === "rerun") {
-                // For rerun: remove tags based on current path (to handle setting changes)
-                // This ensures tags are refreshed when depth setting changes
+                // For rerun: remove both old-style and new-style tags to ensure clean migration
                 const currentTags = this.getAllTags(file.path);
-                existingTags = existingTags.filter(t => !currentTags.includes(t));
+                const oldStyleTags = this.getOldStyleFolderTagsFromPath(file.path);
+                const allTagsToRemove = [...currentTags, ...oldStyleTags];
+                existingTags = existingTags.filter(t => !allTagsToRemove.includes(t));
             }
 
             // Add new folder tags
@@ -428,7 +442,9 @@ export default class FolderTagPlugin extends Plugin {
         for (const file of files) {
             try {
                 const allTags = this.getAllTags(file.path);
-                if (!allTags.length) continue;
+                const oldStyleTags = this.getOldStyleFolderTagsFromPath(file.path);
+                const allTagsToRemove = [...allTags, ...oldStyleTags];
+                if (!allTagsToRemove.length) continue;
 
                 await this.app.fileManager.processFrontMatter(file, yaml => {
                     if (!yaml || typeof yaml !== "object") return;
@@ -440,8 +456,8 @@ export default class FolderTagPlugin extends Plugin {
                         else if (typeof val === "string") existingTags.push(...val.split(",").map(v => v.trim()));
                     }
 
-                    // Remove all plugin-generated tags
-                    existingTags = existingTags.filter(t => !allTags.includes(t));
+                    // Remove all plugin-generated tags (both old-style and new-style)
+                    existingTags = existingTags.filter(t => !allTagsToRemove.includes(t));
 
                     if (existingTags.length === 0) delete yaml.tags;
                     else yaml.tags = existingTags;
